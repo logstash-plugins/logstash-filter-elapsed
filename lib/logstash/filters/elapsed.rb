@@ -1,3 +1,5 @@
+# encoding: utf-8
+#
 # elapsed filter
 #
 # This filter tracks a pair of start/end events and calculates the elapsed
@@ -154,7 +156,7 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
       if(@start_events.has_key?(unique_id))
         start_event = @start_events.delete(unique_id).event
         @mutex.unlock
-        elapsed = event["@timestamp"] - start_event["@timestamp"]
+        elapsed = event["@timestamp"].to_i - start_event["@timestamp"].to_i
         if(@new_event_on_match)
           elapsed_event = new_elapsed_event(elapsed, unique_id, start_event["@timestamp"])
           filter_matched(elapsed_event)
