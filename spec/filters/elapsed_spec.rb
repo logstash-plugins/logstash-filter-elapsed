@@ -1,5 +1,8 @@
+# encoding: utf-8
+require "spec_helper"
 require 'socket'
 require "logstash/filters/elapsed"
+require "logstash/event"
 
 describe LogStash::Filters::Elapsed do
   START_TAG = "startTag"
@@ -172,11 +175,13 @@ describe LogStash::Filters::Elapsed do
               # I need to create a new filter because I need to set
               # the config property 'new_event_on_match" to 'true'.
               setup_filter("new_event_on_match" => true)
-              @start_event = start_event(ID_FIELD => @id_value)
+              current_time = Time.now
+
+              @start_event = start_event(ID_FIELD => @id_value, "@timestamp" => current_time)
               @filter.filter(@start_event)
 
-              end_timestamp = @start_event["@timestamp"] + 10
-              end_event = end_event(ID_FIELD => @id_value, "@timestamp" => end_timestamp)
+              end_timestamp = current_time + 10
+              end_event = end_event(ID_FIELD => @id_value, "@timestamp" => end_timestamp, "message" => "end of message")
               @filter.filter(end_event) do |new_event|
                 @match_event = new_event
               end
@@ -193,7 +198,7 @@ describe LogStash::Filters::Elapsed do
 
           context "if 'new_event_on_match' is set to 'false'" do
             before(:each) do
-              end_timestamp = @start_event["@timestamp"] + 10
+              end_timestamp = Time.now + 10
               end_event = end_event(ID_FIELD => @id_value, "@timestamp" => end_timestamp)
               @filter.filter(end_event)
 
