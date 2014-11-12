@@ -1,5 +1,8 @@
-require 'socket'
+# encoding: utf-8
+require "spec_helper"
 require "logstash/filters/elapsed"
+require "logstash/event"
+require "socket"
 
 describe LogStash::Filters::Elapsed do
   START_TAG = "startTag"
