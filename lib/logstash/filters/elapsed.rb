@@ -171,7 +171,7 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
   end # def filter
 
   # The method is invoked by LogStash every 5 seconds.
-  def flush()
+  def flush(options = {})
     expired_elements = []
 
     @mutex.synchronize do
