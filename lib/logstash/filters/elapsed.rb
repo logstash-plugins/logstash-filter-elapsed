@@ -6,6 +6,7 @@
 require "logstash/filters/base"
 require "logstash/namespace"
 require 'thread'
+require 'time'
 
 
 # The elapsed filter tracks a pair of start/end events and uses their
@@ -16,6 +17,7 @@ require 'thread'
 #
 # The configuration looks like this:
 # [source,ruby]
+#
 #     filter {
 #       elapsed {
 #         start_tag => "start event tag"
@@ -28,14 +30,15 @@ require 'thread'
 #
 # The events managed by this filter must have some particular properties.
 # The event describing the start of the task (the "start event") must contain
-# a tag equal to `start_tag`. On the other side, the event describing the end
-# of the task (the "end event") must contain a tag equal to `end_tag`. Both
+# a tag equal to 'start_tag'. On the other side, the event describing the end
+# of the task (the "end event") must contain a tag equal to 'end_tag'. Both
 # these two kinds of event need to own an ID field which identify uniquely that
-# particular task. The name of this field is stored in `unique_id_field`.
+# particular task. The name of this field is stored in 'unique_id_field'.
 #
 # You can use a Grok filter to prepare the events for the elapsed filter.
 # An example of configuration can be:
 # [source,ruby]
+#
 #     filter {
 #       grok {
 #         match => ["message", "%{TIMESTAMP_ISO8601} START id: (?<task_id>.*)"]
@@ -59,26 +62,24 @@ require 'thread'
 # discarded.
 #
 # When an "end event" matching a previously collected "start event" is
-# received, there is a match. The configuration property `new_event_on_match`
+# received, there is a match. The configuration property 'new_event_on_match'
 # tells where to insert the elapsed information: they can be added to the
 # "end event" or a new "match event" can be created. Both events store the
 # following information:
-#
-# * the tags `elapsed` and `elapsed.match`
-# * the field `elapsed.time` with the difference, in seconds, between
+# - the tags "elapsed" and "elapsed.match"
+# - the field "elapsed.time" with the difference, in seconds, between
 #   the two events timestamps
-# * an ID filed with the task ID
-# * the field `elapsed.timestamp_start` with the timestamp of the start event
+# - an ID filed with the task ID
+# - the field "elapsed.timestamp_start" with the timestamp of the "start event"
 #
 # If the "end event" does not arrive before "timeout" seconds, the
 # "start event" is discarded and an "expired event" is generated. This event
 # contains:
-#
-# * the tags `elapsed` and `elapsed.expired_error`
-# * a field called `elapsed.time` with the age, in seconds, of the
+# - the tags "elapsed" and "elapsed.expired_error"
+# - a field called "elapsed.time" with the age, in seconds, of the
 #   "start event"
-# * an ID filed with the task ID
-# * the field `elapsed.timestamp_start` with the timestamp of the "start event"
+# - an ID filed with the task ID
+# - the field "elapsed.timestamp_start" with the timestamp of the "start event"
 #
 class LogStash::Filters::Elapsed < LogStash::Filters::Base
   PREFIX = "elapsed."
@@ -105,14 +106,18 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
   # it's impossible to match the couple of events.
   config :unique_id_field, :validate => :string, :required => true
 
+  # timestamp as defined in the log file, as opposed to the time when the log file is parsed
+  config :timestamp_override, :validate => :string, :required => false
+
+
   # The amount of seconds after an "end event" can be considered lost.
   # The corresponding "start event" is discarded and an "expired event"
   # is generated. The default value is 30 minutes (1800 seconds).
   config :timeout, :validate => :number, :required => false, :default => 1800
 
   # This property manage what to do when an "end event" matches a "start event".
-  # If it's set to `false` (default value), the elapsed information are added
-  # to the "end event"; if it's set to `true` a new "match event" is created.
+  # If it's set to 'false' (default value), the elapsed information are added
+  # to the "end event"; if it's set to 'true' a new "match event" is created.
   config :new_event_on_match, :validate => :boolean, :required => false, :default => false
 
   public
@@ -139,7 +144,6 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
     if(start_event?(event))
       filter_matched(event)
       @logger.info("Elapsed, 'start event' received", start_tag: @start_tag, unique_id_field: @unique_id_field)
-
       @mutex.synchronize do
         unless(@start_events.has_key?(unique_id))
           @start_events[unique_id] = LogStash::Filters::Elapsed::Element.new(event)
@@ -154,13 +158,21 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
       if(@start_events.has_key?(unique_id))
         start_event = @start_events.delete(unique_id).event
         @mutex.unlock
-        elapsed = event["@timestamp"] - start_event["@timestamp"]
+        elapsed = 0
+        log_start_time = start_event["@timestamp"]
+        if timestamp_override.nil?
+          elapsed = event["@timestamp"] - start_event["@timestamp"]
+        else 
+          elapsed = Time.parse(event[@timestamp_override]) - Time.parse(start_event[@timestamp_override])
+          log_start_time = Time.parse(start_event[@timestamp_override])
+        end
+
         if(@new_event_on_match)
-          elapsed_event = new_elapsed_event(elapsed, unique_id, start_event["@timestamp"])
+          elapsed_event = new_elapsed_event(elapsed, unique_id, log_start_time)
           filter_matched(elapsed_event)
           yield elapsed_event if block_given?
         else
-          return add_elapsed_info(event, elapsed, unique_id, start_event["@timestamp"])
+          return add_elapsed_info(event, elapsed, unique_id, log_start_time)
         end
       else
         @mutex.unlock
@@ -238,13 +250,11 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
   end
 
   def add_elapsed_info(event, elapsed_time, unique_id, timestamp_start_event)
-      event.tag(ELAPSED_TAG)
-      event.tag(MATCH_TAG)
-
       event[ELAPSED_FIELD] = elapsed_time
       event[@unique_id_field] = unique_id
       event[TIMESTAMP_START_EVENT_FIELD] = timestamp_start_event
-
+      event.tag(ELAPSED_TAG)
+      event.tag(MATCH_TAG)
       return event
   end
 end # class LogStash::Filters::Elapsed
