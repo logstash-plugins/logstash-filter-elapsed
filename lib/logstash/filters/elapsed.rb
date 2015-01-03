@@ -107,7 +107,7 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
   config :unique_id_field, :validate => :string, :required => true
 
   # timestamp as defined in the log file, as opposed to the time when the log file is parsed
-  config :timestamp_override, :validate => :string, :required => false
+  config :timestamp_field, :validate => :string, :required => false, :default => "@timestamp"
 
 
   # The amount of seconds after an "end event" can be considered lost.
@@ -158,14 +158,8 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
       if(@start_events.has_key?(unique_id))
         start_event = @start_events.delete(unique_id).event
         @mutex.unlock
-        elapsed = 0
-        log_start_time = start_event["@timestamp"]
-        if timestamp_override.nil?
-          elapsed = event["@timestamp"] - start_event["@timestamp"]
-        else 
-          elapsed = Time.parse(event[@timestamp_override]) - Time.parse(start_event[@timestamp_override])
-          log_start_time = Time.parse(start_event[@timestamp_override])
-        end
+        elapsed = Time.parse(event[@timestamp_field]) - Time.parse(start_event[@timestamp_field])
+        log_start_time = Time.parse(start_event[@timestamp_field])
 
         if(@new_event_on_match)
           elapsed_event = new_elapsed_event(elapsed, unique_id, log_start_time)
