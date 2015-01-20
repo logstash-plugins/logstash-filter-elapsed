@@ -93,7 +93,6 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
   MATCH_TAG = PREFIX + "match"
 
   config_name "elapsed"
-  milestone 1
 
   # The name of the tag identifying the "start event"
   config :start_tag, :validate => :string, :required => true
