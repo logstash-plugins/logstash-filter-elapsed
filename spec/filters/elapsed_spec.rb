@@ -105,7 +105,7 @@ describe LogStash::Filters::Elapsed do
 
             @filter.filter(end_event)
 
-            insist { end_event["tags"].include?("elapsed.end_wtihout_start") } == true
+            insist { end_event["tags"].include?("elapsed.end_without_start") } == true
           end
         end
       end
