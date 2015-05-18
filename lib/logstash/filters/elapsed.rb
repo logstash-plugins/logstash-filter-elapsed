@@ -16,6 +16,10 @@ require 'time'
 # The filter has been developed to track the execution time of processes and
 # other long tasks.
 #
+# The filter has been modified to allow specification of a timestamp to use
+# in determining the time interval between two events, instead of relying
+# on the timestamp logstash creates upon receiving and processing the event. 
+#
 # The configuration looks like this:
 # [source,ruby]
 #     filter {
