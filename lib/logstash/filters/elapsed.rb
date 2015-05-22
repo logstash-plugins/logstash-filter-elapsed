@@ -257,6 +257,7 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
       event[ELAPSED_FIELD] = elapsed_time
       event[@unique_id_field] = unique_id
       event[TIMESTAMP_START_EVENT_FIELD] = Time.parse(timestamp_start_event)
+      event[TIMESTAMP_SINCE_EPOCH_START_EVENT_FIELD] = Time.parse(timestamp_start_event).to_f
 
       return event
   end
