@@ -227,7 +227,7 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
       error_event[@unique_id_field] = element.event[@unique_id_field]
       error_event[ELAPSED_FIELD] = element.age
       error_event[TIMESTAMP_START_EVENT_FIELD] = Time.parse(element.event[@start_timestamp])
-      error_event[TIMESTAMP_SINCE_EPOCH_START_EVENT_FIELD] = Time.parse(element.event[@start_timestamp]).to_f
+      error_event[TIMESTAMP_SINCE_EPOCH_START_EVENT_FIELD] = DateTime.parse(element.event[@start_timestamp]).strftime('%Q').to_i
 
       events << error_event
       filter_matched(error_event)
@@ -257,7 +257,7 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
       event[ELAPSED_FIELD] = elapsed_time
       event[@unique_id_field] = unique_id
       event[TIMESTAMP_START_EVENT_FIELD] = Time.parse(timestamp_start_event)
-      event[TIMESTAMP_SINCE_EPOCH_START_EVENT_FIELD] = Time.parse(timestamp_start_event).to_f
+      event[TIMESTAMP_SINCE_EPOCH_START_EVENT_FIELD] = DateTime.parse(timestamp_start_event).strftime('%Q').to_i
 
       return event
   end
