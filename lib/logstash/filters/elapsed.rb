@@ -131,7 +131,7 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
   end
 
   def filter(event)
-    return unless filter?(event)
+    
 
     unique_id = event[@unique_id_field]
     return if unique_id.nil?
