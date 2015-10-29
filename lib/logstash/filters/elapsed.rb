@@ -65,24 +65,24 @@ require 'socket'
 # "end event" or a new "match event" can be created. Both events store the
 # following information:
 #
-# * the tags `elapsed` and `elapsed.match`
-# * the field `elapsed.time` with the difference, in seconds, between
+# * the tags `elapsed` and `elapsed_match`
+# * the field `elapsed_time` with the difference, in seconds, between
 #   the two events timestamps
 # * an ID filed with the task ID
-# * the field `elapsed.timestamp_start` with the timestamp of the start event
+# * the field `elapsed_timestamp_start` with the timestamp of the start event
 #
 # If the "end event" does not arrive before "timeout" seconds, the
 # "start event" is discarded and an "expired event" is generated. This event
 # contains:
 #
-# * the tags `elapsed` and `elapsed.expired_error`
-# * a field called `elapsed.time` with the age, in seconds, of the
+# * the tags `elapsed` and `elapsed_expired_error`
+# * a field called `elapsed_time` with the age, in seconds, of the
 #   "start event"
 # * an ID filed with the task ID
-# * the field `elapsed.timestamp_start` with the timestamp of the "start event"
+# * the field `elapsed_timestamp_start` with the timestamp of the "start event"
 #
 class LogStash::Filters::Elapsed < LogStash::Filters::Base
-  PREFIX = "elapsed."
+  PREFIX = "elapsed_"
   ELAPSED_FIELD = PREFIX + "time"
   TIMESTAMP_START_EVENT_FIELD = PREFIX + "timestamp_start"
   HOST_FIELD = "host"
@@ -131,7 +131,7 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
   end
 
   def filter(event)
-    
+
 
     unique_id = event[@unique_id_field]
     return if unique_id.nil?
