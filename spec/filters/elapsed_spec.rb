@@ -105,12 +105,12 @@ describe LogStash::Filters::Elapsed do
 
       describe "and with an id" do
         describe "but without a previous 'start event'" do
-          it "adds a tag 'elapsed.end_without_start' to the 'end event'" do
+          it "adds a tag 'elapsed_end_witout_start' to the 'end event'" do
             end_event = end_event(ID_FIELD => "id_123")
 
             @filter.filter(end_event)
 
-            insist { end_event["tags"].include?("elapsed.end_without_start") } == true
+            insist { end_event["tags"].include?("elapsed_end_without_start") } == true
           end
         end
       end
@@ -158,8 +158,8 @@ describe LogStash::Filters::Elapsed do
               insist { @match_event["tags"].include?("elapsed") } == true
             end
 
-            it "contains the tag tag 'elapsed.match'" do
-              insist { @match_event["tags"].include?("elapsed.match") } == true
+            it "contains the tag tag 'elapsed_match'" do
+              insist { @match_event["tags"].include?("elapsed_match") } == true
             end
 
             it "contains an 'elapsed.time field' with the elapsed time" do
@@ -268,9 +268,9 @@ describe LogStash::Filters::Elapsed do
         insist { @filter.start_events.key?("3") } == false
       end
 
-      it "creates a new event with tag 'elapsed.expired_error' for each expired 'start event'" do
-        insist { @expired_events[0]["tags"].include?("elapsed.expired_error") } == true
-        insist { @expired_events[1]["tags"].include?("elapsed.expired_error") } == true
+      it "creates a new event with tag 'elapsed_expired_error' for each expired 'start event'" do
+        insist { @expired_events[0]["tags"].include?("elapsed_expired_error") } == true
+        insist { @expired_events[1]["tags"].include?("elapsed_expired_error") } == true
       end
 
       it "creates a new event with tag 'elapsed' for each expired 'start event'" do
@@ -283,9 +283,9 @@ describe LogStash::Filters::Elapsed do
         insist { @expired_events[1][ID_FIELD] } == "3"
       end
 
-      it "creates a new event containing an 'elapsed.time field' with the age of the expired 'start event'" do
-        insist { @expired_events[0]["elapsed.time"] } == 30
-        insist { @expired_events[1]["elapsed.time"] } == 31
+      it "creates a new event containing an 'elapsed_time field' with the age of the expired 'start event'" do
+        insist { @expired_events[0]["elapsed_time"] } == 30
+        insist { @expired_events[1]["elapsed_time"] } == 31
       end
 
       it "creates a new event containing an 'elapsed.timestamp_start field' with the timestamp of the expired 'start event'" do
