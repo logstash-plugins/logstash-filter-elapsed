@@ -7,6 +7,7 @@ require "logstash/filters/base"
 require "logstash/namespace"
 require 'thread'
 require 'socket'
+require 'time'
 
 
 # The elapsed filter tracks a pair of start/end events and uses their
@@ -14,6 +15,10 @@ require 'socket'
 #
 # The filter has been developed to track the execution time of processes and
 # other long tasks.
+#
+# The filter has been modified to allow specification of a timestamp to use
+# in determining the time interval between two events, instead of relying
+# on the timestamp logstash creates upon receiving and processing the event. 
 #
 # The configuration looks like this:
 # [source,ruby]
@@ -85,6 +90,7 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
   PREFIX = "elapsed_"
   ELAPSED_FIELD = PREFIX + "time"
   TIMESTAMP_START_EVENT_FIELD = PREFIX + "timestamp_start"
+  TIMESTAMP_SINCE_EPOCH_START_EVENT_FIELD = PREFIX + "timestamp_start_ts"
   HOST_FIELD = "host"
 
   ELAPSED_TAG = "elapsed"
@@ -97,8 +103,14 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
   # The name of the tag identifying the "start event"
   config :start_tag, :validate => :string, :required => true
 
+  # The name of the tag identifying the "start timestamp"
+  config :start_timestamp, :validate => :string, :required => true, :default => '@timestamp'
+
   # The name of the tag identifying the "end event"
   config :end_tag, :validate => :string, :required => true
+
+  # The name of the tag identifying the "end timestamp"
+  config :end_timestamp, :validate => :string, :required => true, :default => '@timestamp'
 
   # The name of the field containing the task ID.
   # This value must uniquely identify the task in the system, otherwise
@@ -154,13 +166,13 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
       if(@start_events.has_key?(unique_id))
         start_event = @start_events.delete(unique_id).event
         @mutex.unlock
-        elapsed = event["@timestamp"] - start_event["@timestamp"]
+        elapsed = Time.parse(event[@end_timestamp]) - Time.parse(start_event[@start_timestamp])
         if(@new_event_on_match)
-          elapsed_event = new_elapsed_event(elapsed, unique_id, start_event["@timestamp"])
+          elapsed_event = new_elapsed_event(elapsed, unique_id, start_event[@start_timestamp])
           filter_matched(elapsed_event)
           yield elapsed_event if block_given?
         else
-          return add_elapsed_info(event, elapsed, unique_id, start_event["@timestamp"])
+          return add_elapsed_info(event, elapsed, unique_id, start_event[@start_timestamp])
         end
       else
         @mutex.unlock
@@ -214,7 +226,8 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
       error_event[HOST_FIELD] = Socket.gethostname
       error_event[@unique_id_field] = element.event[@unique_id_field]
       error_event[ELAPSED_FIELD] = element.age
-      error_event[TIMESTAMP_START_EVENT_FIELD] = element.event["@timestamp"]
+      error_event[TIMESTAMP_START_EVENT_FIELD] = Time.parse(element.event[@start_timestamp])
+      error_event[TIMESTAMP_SINCE_EPOCH_START_EVENT_FIELD] = DateTime.parse(element.event[@start_timestamp]).strftime('%Q').to_i
 
       events << error_event
       filter_matched(error_event)
@@ -224,11 +237,11 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
   end
 
   def start_event?(event)
-    return (event["tags"] != nil && event["tags"].include?(@start_tag))
+    return (event["tags"] != nil && event["tags"].include?(@start_tag) && event[@start_timestamp] != nil)
   end
 
   def end_event?(event)
-    return (event["tags"] != nil && event["tags"].include?(@end_tag))
+    return (event["tags"] != nil && event["tags"].include?(@end_tag) && event[@end_timestamp] != nil)
   end
 
   def new_elapsed_event(elapsed_time, unique_id, timestamp_start_event)
@@ -243,7 +256,8 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
 
       event[ELAPSED_FIELD] = elapsed_time
       event[@unique_id_field] = unique_id
-      event[TIMESTAMP_START_EVENT_FIELD] = timestamp_start_event
+      event[TIMESTAMP_START_EVENT_FIELD] = Time.parse(timestamp_start_event)
+      event[TIMESTAMP_SINCE_EPOCH_START_EVENT_FIELD] = DateTime.parse(timestamp_start_event).strftime('%Q').to_i
 
       return event
   end

@@ -3,10 +3,13 @@ require "logstash/devutils/rspec/spec_helper"
 require "logstash/filters/elapsed"
 require "logstash/event"
 require "socket"
+require 'time'
 
 describe LogStash::Filters::Elapsed do
   START_TAG = "startTag"
+  START_TIMESTAMP = "start_timestamp"
   END_TAG   = "endTag"
+  END_TIMESTAMP = "end_timestamp"
   ID_FIELD  = "uniqueIdField"
 
   def event(data)
@@ -17,12 +20,14 @@ describe LogStash::Filters::Elapsed do
   def start_event(data)
     data["tags"] ||= []
     data["tags"] << START_TAG
+    data[START_TIMESTAMP] ||= "20150518-18:33:22.345"
     event(data)
   end
 
   def end_event(data = {})
     data["tags"] ||= []
     data["tags"] << END_TAG
+    data[END_TIMESTAMP] ||= "20150518-18:33:22.347"
     event(data)
   end
 
@@ -31,7 +36,7 @@ describe LogStash::Filters::Elapsed do
   end
 
   def setup_filter(config = {})
-    @config = {"start_tag" => START_TAG, "end_tag" => END_TAG, "unique_id_field" => ID_FIELD}
+    @config = {"start_tag" => START_TAG, "end_tag" => END_TAG, "unique_id_field" => ID_FIELD, "start_timestamp" => START_TIMESTAMP, "end_timestamp" => END_TIMESTAMP}
     @config.merge!(config)
     @filter = LogStash::Filters::Elapsed.new(@config)
     @filter.register
@@ -57,7 +62,7 @@ describe LogStash::Filters::Elapsed do
     describe "receiving an event with a valid start tag" do
       describe "but without an unique id field" do
         it "does not record it" do
-          @filter.filter(event("tags" => ["tag1", START_TAG]))
+          @filter.filter(event("tags" => ["tag1", START_TAG], START_TIMESTAMP => "20150518-18:33:22.345"))
           insist { @filter.start_events.size } == 0
         end
       end
@@ -75,7 +80,7 @@ describe LogStash::Filters::Elapsed do
 
     describe "receiving two 'start events' for the same id field" do
       it "keeps the first one and does not save the second one" do
-          args = {"tags" => [START_TAG], ID_FIELD => "id123"}
+          args = {"tags" => [START_TAG], ID_FIELD => "id123", START_TIMESTAMP => "20150518-18:33:22.345"}
           first_event = event(args)
           second_event = event(args)
 
@@ -157,12 +162,12 @@ describe LogStash::Filters::Elapsed do
               insist { @match_event["tags"].include?("elapsed_match") } == true
             end
 
-            it "contains an 'elapsed_time field' with the elapsed time" do
-              insist { @match_event["elapsed_time"] } == 10
+            it "contains an 'elapsed.time field' with the elapsed time" do
+              insist { @match_event["elapsed.time"] } == 0.002
             end
 
-            it "contains an 'elapsed_timestamp_start field' with the timestamp of the 'start event'" do
-              insist { @match_event["elapsed_timestamp_start"] } == @start_event["@timestamp"]
+            it "contains an 'elapsed.timestamp_start field' with the timestamp of the 'start event'" do
+              insist { @match_event["elapsed.timestamp_start"] } == Time.parse(@start_event[START_TIMESTAMP])
             end
 
             it "contains an 'id field'" do
@@ -178,8 +183,8 @@ describe LogStash::Filters::Elapsed do
               @start_event = start_event(ID_FIELD => @id_value)
               @filter.filter(@start_event)
 
-              end_timestamp = @start_event["@timestamp"] + 10
-              end_event = end_event(ID_FIELD => @id_value, "@timestamp" => end_timestamp)
+              # end_timestamp = @start_event["@timestamp"] + 10
+              end_event = end_event(ID_FIELD => @id_value)
               @filter.filter(end_event) do |new_event|
                 @match_event = new_event
               end
@@ -196,8 +201,8 @@ describe LogStash::Filters::Elapsed do
 
           context "if 'new_event_on_match' is set to 'false'" do
             before(:each) do
-              end_timestamp = @start_event["@timestamp"] + 10
-              end_event = end_event(ID_FIELD => @id_value, "@timestamp" => end_timestamp)
+              # end_timestamp = @start_event["@timestamp"] + 10
+              end_event = end_event(ID_FIELD => @id_value)
               @filter.filter(end_event)
 
               @match_event = end_event
@@ -283,9 +288,9 @@ describe LogStash::Filters::Elapsed do
         insist { @expired_events[1]["elapsed_time"] } == 31
       end
 
-      it "creates a new event containing an 'elapsed_timestamp_start field' with the timestamp of the expired 'start event'" do
-        insist { @expired_events[0]["elapsed_timestamp_start"] } == @start_event_2["@timestamp"]
-        insist { @expired_events[1]["elapsed_timestamp_start"] } == @start_event_3["@timestamp"]
+      it "creates a new event containing an 'elapsed.timestamp_start field' with the timestamp of the expired 'start event'" do
+        insist { @expired_events[0]["elapsed.timestamp_start"] } == Time.parse(@start_event_2[START_TIMESTAMP])
+        insist { @expired_events[1]["elapsed.timestamp_start"] } == Time.parse(@start_event_3[START_TIMESTAMP])
       end
 
       it "creates a new event containing a 'host field' for each expired 'start event'" do
