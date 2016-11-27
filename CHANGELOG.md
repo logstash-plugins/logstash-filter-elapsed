@@ -1,3 +1,5 @@
+# 3.0.3
+  - Use the new Event Api used in v5.0.0+
 # 3.0.2
   - Depend on logstash-core-plugin-api instead of logstash-core, removing the need to mass update plugins on major releases of logstash
 # 3.0.1

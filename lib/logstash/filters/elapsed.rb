@@ -133,7 +133,7 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
   def filter(event)
 
 
-    unique_id = event[@unique_id_field]
+    unique_id = event.get(@unique_id_field)
     return if unique_id.nil?
 
     if(start_event?(event))
@@ -154,13 +154,13 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
       if(@start_events.has_key?(unique_id))
         start_event = @start_events.delete(unique_id).event
         @mutex.unlock
-        elapsed = event["@timestamp"] - start_event["@timestamp"]
+        elapsed = event.get("@timestamp") - start_event.get("@timestamp")
         if(@new_event_on_match)
-          elapsed_event = new_elapsed_event(elapsed, unique_id, start_event["@timestamp"])
+          elapsed_event = new_elapsed_event(elapsed, unique_id, start_event.get("@timestamp"))
           filter_matched(elapsed_event)
           yield elapsed_event if block_given?
         else
-          return add_elapsed_info(event, elapsed, unique_id, start_event["@timestamp"])
+          return add_elapsed_info(event, elapsed, unique_id, start_event.get("@timestamp"))
         end
       else
         @mutex.unlock
@@ -211,10 +211,10 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
       error_event.tag(ELAPSED_TAG)
       error_event.tag(EXPIRED_ERROR_TAG)
 
-      error_event[HOST_FIELD] = Socket.gethostname
-      error_event[@unique_id_field] = element.event[@unique_id_field]
-      error_event[ELAPSED_FIELD] = element.age
-      error_event[TIMESTAMP_START_EVENT_FIELD] = element.event["@timestamp"]
+      error_event.set(HOST_FIELD, Socket.gethostname)
+      error_event.set(@unique_id_field, element.event.get(@unique_id_field) )
+      error_event.set(ELAPSED_FIELD, element.age)
+      error_event.set(TIMESTAMP_START_EVENT_FIELD, element.event.get("@timestamp") )
 
       events << error_event
       filter_matched(error_event)
@@ -224,16 +224,16 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
   end
 
   def start_event?(event)
-    return (event["tags"] != nil && event["tags"].include?(@start_tag))
+    return (event.get("tags") != nil && event.get("tags").include?(@start_tag))
   end
 
   def end_event?(event)
-    return (event["tags"] != nil && event["tags"].include?(@end_tag))
+    return (event.get("tags") != nil && event.get("tags").include?(@end_tag))
   end
 
   def new_elapsed_event(elapsed_time, unique_id, timestamp_start_event)
       new_event = LogStash::Event.new
-      new_event[HOST_FIELD] = Socket.gethostname
+      new_event.set(HOST_FIELD, Socket.gethostname)
       return add_elapsed_info(new_event, elapsed_time, unique_id, timestamp_start_event)
   end
 
@@ -241,9 +241,9 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
       event.tag(ELAPSED_TAG)
       event.tag(MATCH_TAG)
 
-      event[ELAPSED_FIELD] = elapsed_time
-      event[@unique_id_field] = unique_id
-      event[TIMESTAMP_START_EVENT_FIELD] = timestamp_start_event
+      event.set(ELAPSED_FIELD, elapsed_time)
+      event.set(@unique_id_field, unique_id)
+      event.set(TIMESTAMP_START_EVENT_FIELD, timestamp_start_event)
 
       return event
   end
