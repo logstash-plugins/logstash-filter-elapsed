@@ -105,7 +105,7 @@ describe LogStash::Filters::Elapsed do
 
             @filter.filter(end_event)
 
-            insist { end_event["tags"].include?("elapsed_end_without_start") } == true
+            insist { end_event.get("tags").include?("elapsed_end_without_start") } == true
           end
         end
       end
@@ -150,23 +150,23 @@ describe LogStash::Filters::Elapsed do
 
           shared_examples_for "match event" do
             it "contains the tag 'elapsed'" do
-              insist { @match_event["tags"].include?("elapsed") } == true
+              insist { @match_event.get("tags").include?("elapsed") } == true
             end
 
             it "contains the tag tag 'elapsed_match'" do
-              insist { @match_event["tags"].include?("elapsed_match") } == true
+              insist { @match_event.get("tags").include?("elapsed_match") } == true
             end
 
             it "contains an 'elapsed_time field' with the elapsed time" do
-              insist { @match_event["elapsed_time"] } == 10
+              insist { @match_event.get("elapsed_time") } == 10
             end
 
             it "contains an 'elapsed_timestamp_start field' with the timestamp of the 'start event'" do
-              insist { @match_event["elapsed_timestamp_start"] } == @start_event["@timestamp"]
+              insist { @match_event.get("elapsed_timestamp_start") } == @start_event.get("@timestamp")
             end
 
             it "contains an 'id field'" do
-              insist { @match_event[ID_FIELD] } == @id_value
+              insist { @match_event.get(ID_FIELD) } == @id_value
             end
           end
 
@@ -178,7 +178,7 @@ describe LogStash::Filters::Elapsed do
               @start_event = start_event(ID_FIELD => @id_value)
               @filter.filter(@start_event)
 
-              end_timestamp = @start_event["@timestamp"] + 10
+              end_timestamp = @start_event.get("@timestamp") + 10
               end_event = end_event(ID_FIELD => @id_value, "@timestamp" => end_timestamp)
               @filter.filter(end_event) do |new_event|
                 @match_event = new_event
@@ -189,14 +189,14 @@ describe LogStash::Filters::Elapsed do
               it_behaves_like "match event"
 
               it "contains the 'host field'" do
-                insist { @match_event["host"] } == Socket.gethostname
+                insist { @match_event.get("host") } == Socket.gethostname
               end
             end
           end
 
           context "if 'new_event_on_match' is set to 'false'" do
             before(:each) do
-              end_timestamp = @start_event["@timestamp"] + 10
+              end_timestamp = @start_event.get("@timestamp") + 10
               end_event = end_event(ID_FIELD => @id_value, "@timestamp" => end_timestamp)
               @filter.filter(end_event)
 
@@ -264,33 +264,33 @@ describe LogStash::Filters::Elapsed do
       end
 
       it "creates a new event with tag 'elapsed_expired_error' for each expired 'start event'" do
-        insist { @expired_events[0]["tags"].include?("elapsed_expired_error") } == true
-        insist { @expired_events[1]["tags"].include?("elapsed_expired_error") } == true
+        insist { @expired_events[0].get("tags").include?("elapsed_expired_error") } == true
+        insist { @expired_events[1].get("tags").include?("elapsed_expired_error") } == true
       end
 
       it "creates a new event with tag 'elapsed' for each expired 'start event'" do
-        insist { @expired_events[0]["tags"].include?("elapsed") } == true
-        insist { @expired_events[1]["tags"].include?("elapsed") } == true
+        insist { @expired_events[0].get("tags").include?("elapsed") } == true
+        insist { @expired_events[1].get("tags").include?("elapsed") } == true
       end
 
       it "creates a new event containing the 'id field' of the expired 'start event'" do
-        insist { @expired_events[0][ID_FIELD] } == "2"
-        insist { @expired_events[1][ID_FIELD] } == "3"
+        insist { @expired_events[0].get(ID_FIELD) } == "2"
+        insist { @expired_events[1].get(ID_FIELD) } == "3"
       end
 
       it "creates a new event containing an 'elapsed_time field' with the age of the expired 'start event'" do
-        insist { @expired_events[0]["elapsed_time"] } == 30
-        insist { @expired_events[1]["elapsed_time"] } == 31
+        insist { @expired_events[0].get("elapsed_time") } == 30
+        insist { @expired_events[1].get("elapsed_time") } == 31
       end
 
       it "creates a new event containing an 'elapsed_timestamp_start field' with the timestamp of the expired 'start event'" do
-        insist { @expired_events[0]["elapsed_timestamp_start"] } == @start_event_2["@timestamp"]
-        insist { @expired_events[1]["elapsed_timestamp_start"] } == @start_event_3["@timestamp"]
+        insist { @expired_events[0].get("elapsed_timestamp_start") } == @start_event_2.get("@timestamp")
+        insist { @expired_events[1].get("elapsed_timestamp_start") } == @start_event_3.get("@timestamp")
       end
 
       it "creates a new event containing a 'host field' for each expired 'start event'" do
-        insist { @expired_events[0]["host"] } == Socket.gethostname
-        insist { @expired_events[1]["host"] } == Socket.gethostname
+        insist { @expired_events[0].get("host") } == Socket.gethostname
+        insist { @expired_events[1].get("host") } == Socket.gethostname
       end
     end
   end
