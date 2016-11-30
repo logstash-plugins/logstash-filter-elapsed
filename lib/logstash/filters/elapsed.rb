@@ -5,6 +5,7 @@
 
 require "logstash/filters/base"
 require "logstash/namespace"
+require "logstash/timestamp"
 require 'thread'
 require 'socket'
 
@@ -115,6 +116,13 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
   # to the "end event"; if it's set to `true` a new "match event" is created.
   config :new_event_on_match, :validate => :boolean, :required => false, :default => false
 
+
+  # The name of the field containing the timestamp. Default value is `"@timestamp"`.
+  # The type of the field should be a `LogStash::Timestamp`. 
+  # You can use the date filter to cast a timestamp in any format to the required type.
+  # If the field is missing or it has invalid type then the event is not recorded.
+  config :timestamp_field, :validate => :string, :required => false, :default => "@timestamp"
+
   public
   def register
     @mutex = Mutex.new
@@ -131,10 +139,11 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
   end
 
   def filter(event)
-
-
     unique_id = event.get(@unique_id_field)
     return if unique_id.nil?
+    timestamp = event.get(@timestamp_field)
+    return if timestamp.nil?
+    return if not timestamp.kind_of?(LogStash::Timestamp)
 
     if(start_event?(event))
       filter_matched(event)
@@ -153,14 +162,15 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
       @mutex.lock
       if(@start_events.has_key?(unique_id))
         start_event = @start_events.delete(unique_id).event
+        start_event_timestamp = start_event.get(@timestamp_field)
         @mutex.unlock
-        elapsed = event.get("@timestamp") - start_event.get("@timestamp")
+        elapsed = timestamp - start_event_timestamp
         if(@new_event_on_match)
-          elapsed_event = new_elapsed_event(elapsed, unique_id, start_event.get("@timestamp"))
+          elapsed_event = new_elapsed_event(elapsed, unique_id, start_event_timestamp)
           filter_matched(elapsed_event)
           yield elapsed_event if block_given?
         else
-          return add_elapsed_info(event, elapsed, unique_id, start_event.get("@timestamp"))
+          return add_elapsed_info(event, elapsed, unique_id, start_event_timestamp)
         end
       else
         @mutex.unlock
@@ -214,7 +224,7 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
       error_event.set(HOST_FIELD, Socket.gethostname)
       error_event.set(@unique_id_field, element.event.get(@unique_id_field) )
       error_event.set(ELAPSED_FIELD, element.age)
-      error_event.set(TIMESTAMP_START_EVENT_FIELD, element.event.get("@timestamp") )
+      error_event.set(TIMESTAMP_START_EVENT_FIELD, element.event.get(@timestamp_field) )
 
       events << error_event
       filter_matched(error_event)
