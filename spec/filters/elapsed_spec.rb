@@ -8,6 +8,9 @@ describe LogStash::Filters::Elapsed do
   START_TAG = "startTag"
   END_TAG   = "endTag"
   ID_FIELD  = "uniqueIdField"
+  DEFAULT_TIMESTAMP_FIELD = "@timestamp"
+  CUSTOM_TIMESTAMP_FIELD = "customTimestampField"
+  ELAPSED_TIME = 10
 
   def event(data)
     data["message"] ||= "Log message"
@@ -112,6 +115,71 @@ describe LogStash::Filters::Elapsed do
     end
   end
 
+  context "Filter with config property timestamp_field set" do
+    before(:each) do
+      # I need to create a new filter because I need to set
+      # the config property 'timestamp_field'.
+      setup_filter("timestamp_field" => CUSTOM_TIMESTAMP_FIELD)        
+    end
+    
+    describe "and start event" do
+      describe "without custom timestamp field" do
+        it "does not record it" do
+          @filter.filter(start_event(ID_FIELD => "id123"))
+          insist { @filter.start_events.size } == 0
+        end
+      end
+      
+      describe "with invalid custom timestamp value" do
+        it "does not record it" do
+          @filter.filter(start_event(ID_FIELD => "id123", CUSTOM_TIMESTAMP_FIELD => "invalid"))
+          insist { @filter.start_events.size } == 0
+        end
+      end
+
+      describe "with valid custom timestamp value" do
+        it "records it" do
+          event = start_event(ID_FIELD => "id123")
+          # I reuse the default timestamp to construct a valid timestamp
+          event.set(CUSTOM_TIMESTAMP_FIELD, event.get(DEFAULT_TIMESTAMP_FIELD))
+          @filter.filter(event)
+
+          insist { @filter.start_events.size } == 1
+          insist { @filter.start_events["id123"].event } == event
+        end
+      end
+    end
+
+    describe "and end event" do
+      describe "without custom timestamp field" do
+        it "does not record it" do
+          insist { @filter.start_events.size } == 0
+          @filter.filter(end_event(ID_FIELD => "id123"))
+          insist { @filter.start_events.size } == 0
+        end
+      end
+    
+      describe "with invalid custom timestamp value" do
+        it "does not record it" do
+          insist { @filter.start_events.size } == 0
+          @filter.filter(end_event(ID_FIELD => "id123", CUSTOM_TIMESTAMP_FIELD => "invalid"))
+          insist { @filter.start_events.size } == 0
+        end
+      end
+
+      describe "with valid custom timestamp value" do
+        it "records it" do
+          event = end_event(ID_FIELD => "id123")
+          # I reuse the default timestamp to construct a valid timestamp
+          event.set(CUSTOM_TIMESTAMP_FIELD, event.get(DEFAULT_TIMESTAMP_FIELD))
+          @filter.filter(event)
+
+          insist { event.get("tags").include?("elapsed_end_without_start") } == true
+        end
+      end
+    end
+  end
+
   context "Start/end events interaction" do
     describe "receiving a 'start event'" do
       before(:each) do
@@ -148,7 +216,7 @@ describe LogStash::Filters::Elapsed do
             insist { @filter.start_events.size } == 0
           end
 
-          shared_examples_for "match event" do
+          shared_examples_for "match event" do |timestamp_field|
             it "contains the tag 'elapsed'" do
               insist { @match_event.get("tags").include?("elapsed") } == true
             end
@@ -158,11 +226,11 @@ describe LogStash::Filters::Elapsed do
             end
 
             it "contains an 'elapsed_time field' with the elapsed time" do
-              insist { @match_event.get("elapsed_time") } == 10
+              insist { @match_event.get("elapsed_time") } == ELAPSED_TIME
             end
 
             it "contains an 'elapsed_timestamp_start field' with the timestamp of the 'start event'" do
-              insist { @match_event.get("elapsed_timestamp_start") } == @start_event.get("@timestamp")
+              insist { @match_event.get("elapsed_timestamp_start") } == @start_event.get(timestamp_field)
             end
 
             it "contains an 'id field'" do
@@ -170,58 +238,124 @@ describe LogStash::Filters::Elapsed do
             end
           end
 
-          context "if 'new_event_on_match' is set to 'true'" do
-            before(:each) do
-              # I need to create a new filter because I need to set
-              # the config property 'new_event_on_match" to 'true'.
-              setup_filter("new_event_on_match" => true)
-              @start_event = start_event(ID_FIELD => @id_value)
-              @filter.filter(@start_event)
+          def setup_events_with_custom_timestamps() 
+            # I set the value of the custom timestamp to a different value from the default timestamp
+            start_timestamp = @start_event.get(DEFAULT_TIMESTAMP_FIELD) - 1
+            @start_event.set(CUSTOM_TIMESTAMP_FIELD, start_timestamp)
+                
+            end_timestamp = start_timestamp + ELAPSED_TIME
+            # I set the default timestamp to be later than the custom timestamp. 
+            # I also make sure the elapsed times on the two timestamps differ.
+            @end_event = end_event(ID_FIELD => @id_value, CUSTOM_TIMESTAMP_FIELD => end_timestamp, DEFAULT_TIMESTAMP_FIELD => end_timestamp + 10)    
+          end
 
-              end_timestamp = @start_event.get("@timestamp") + 10
-              end_event = end_event(ID_FIELD => @id_value, "@timestamp" => end_timestamp)
-              @filter.filter(end_event) do |new_event|
-                @match_event = new_event
+          context "if 'new_event_on_match' is set to 'true'" do
+            context "if 'timestamp_field' is not set" do
+              before(:each) do
+                # I need to create a new filter because I need to set
+                # the config property 'new_event_on_match' to 'true'.
+                setup_filter("new_event_on_match" => true)
+                @start_event = start_event(ID_FIELD => @id_value)
+                @filter.filter(@start_event)
+
+                end_timestamp = @start_event.get(DEFAULT_TIMESTAMP_FIELD) + ELAPSED_TIME
+                end_event = end_event(ID_FIELD => @id_value, DEFAULT_TIMESTAMP_FIELD => end_timestamp)
+                @filter.filter(end_event) do |new_event|
+                  @match_event = new_event
+                end
+              end
+
+              context "creates a new event that" do
+                it_behaves_like "match event", DEFAULT_TIMESTAMP_FIELD
+
+                it "contains the 'host field'" do
+                  insist { @match_event.get("host") } == Socket.gethostname
+                end
               end
             end
 
-            context "creates a new event that" do
-              it_behaves_like "match event"
+            context "if 'timestamp_field' is set" do
+              before(:each) do
+                # I need to create a new filter because I need to set
+                # the config property 'new_event_on_match' to 'true' and set a custom timestamp field.
+                setup_filter("new_event_on_match" => true, "timestamp_field" => CUSTOM_TIMESTAMP_FIELD)
+                @start_event = start_event(ID_FIELD => @id_value)
+                
+                setup_events_with_custom_timestamps()
+                @filter.filter(@start_event)
 
-              it "contains the 'host field'" do
-                insist { @match_event.get("host") } == Socket.gethostname
+                @filter.filter(@end_event) do |new_event|
+                  @match_event = new_event
+                end
+              end
+
+              context "creates a new event that" do
+                it_behaves_like "match event", CUSTOM_TIMESTAMP_FIELD
+
+                it "contains the 'host field'" do
+                  insist { @match_event.get("host") } == Socket.gethostname
+                end
               end
             end
           end
 
           context "if 'new_event_on_match' is set to 'false'" do
-            before(:each) do
-              end_timestamp = @start_event.get("@timestamp") + 10
-              end_event = end_event(ID_FIELD => @id_value, "@timestamp" => end_timestamp)
-              @filter.filter(end_event)
+            context "if 'timestamp_field' is not set" do
+              before(:each) do
+                end_timestamp = @start_event.get(DEFAULT_TIMESTAMP_FIELD) + ELAPSED_TIME
+                end_event = end_event(ID_FIELD => @id_value, DEFAULT_TIMESTAMP_FIELD => end_timestamp)
+                @filter.filter(end_event)
 
-              @match_event = end_event
+                @match_event = end_event
+              end
+
+              context "modifies the 'end event' that" do
+                it_behaves_like "match event", DEFAULT_TIMESTAMP_FIELD
+              end
             end
 
-            context "modifies the 'end event' that" do
-              it_behaves_like "match event"
+            context "if 'timestamp_field' is set" do
+              before(:each) do
+                # I need to create a new filter because I need to set
+                # the config property 'timestamp_field'.
+                setup_filter("timestamp_field" => CUSTOM_TIMESTAMP_FIELD)
+                
+                setup_events_with_custom_timestamps()
+                @filter.filter(@start_event)
+                @filter.filter(@end_event)
+
+                @match_event = @end_event
+              end
+
+              context "modifies the 'end event' that" do
+                it_behaves_like "match event", CUSTOM_TIMESTAMP_FIELD
+              end
             end
           end
-
         end
       end
     end
   end
 
   describe "#flush" do
-    def setup(timeout = 1000)
+    def setup(timeout = 1000, custom_timestamp_set = false)
       @config["timeout"] = timeout
+      if(custom_timestamp_set)
+        @config["timestamp_field"] = CUSTOM_TIMESTAMP_FIELD
+      end
       @filter = LogStash::Filters::Elapsed.new(@config)
       @filter.register
 
       @start_event_1 = start_event(ID_FIELD => "1")
       @start_event_2 = start_event(ID_FIELD => "2")
       @start_event_3 = start_event(ID_FIELD => "3")
+
+      if(custom_timestamp_set)
+        # I reuse the '@timestamp' field to construct a valid timestamp and increment it by 1 so that differs
+        @start_event_1.set(CUSTOM_TIMESTAMP_FIELD, @start_event_1.get(DEFAULT_TIMESTAMP_FIELD) + 1)
+        @start_event_2.set(CUSTOM_TIMESTAMP_FIELD, @start_event_2.get(DEFAULT_TIMESTAMP_FIELD) + 1)
+        @start_event_3.set(CUSTOM_TIMESTAMP_FIELD, @start_event_3.get(DEFAULT_TIMESTAMP_FIELD) + 1)
+      end
 
       @filter.filter(@start_event_1)
       @filter.filter(@start_event_2)
@@ -248,49 +382,72 @@ describe LogStash::Filters::Elapsed do
     end
 
     context "if the 'timeout interval' is set to 30 seconds" do
-      before(:each) do
-        setup(30)
+      shared_examples_for "flush events" do |timestamp_field|
+        it "deletes the recorded 'start events' with 'age' greater, or equal to, the timeout" do
+          insist { @filter.start_events.key?("1") } == true
+          insist { @filter.start_events.key?("2") } == false
+          insist { @filter.start_events.key?("3") } == false
+        end
 
-        @expired_events = @filter.flush()
+        it "creates a new event with tag 'elapsed_expired_error' for each expired 'start event'" do
+          insist { @expired_events[0].get("tags").include?("elapsed_expired_error") } == true
+          insist { @expired_events[1].get("tags").include?("elapsed_expired_error") } == true
+        end
 
-        insist { @filter.start_events.size } == 1
-        insist { @expired_events.size } == 2
+        it "creates a new event with tag 'elapsed' for each expired 'start event'" do
+          insist { @expired_events[0].get("tags").include?("elapsed") } == true
+          insist { @expired_events[1].get("tags").include?("elapsed") } == true
+        end
+
+        it "creates a new event containing the 'id field' of the expired 'start event'" do
+          insist { @expired_events[0].get(ID_FIELD) } == "2"
+          insist { @expired_events[1].get(ID_FIELD) } == "3"
+        end
+
+        it "creates a new event containing an 'elapsed_time field' with the age of the expired 'start event'" do
+          insist { @expired_events[0].get("elapsed_time") } == 30
+          insist { @expired_events[1].get("elapsed_time") } == 31
+        end
+
+        it "creates a new event containing an 'elapsed_timestamp_start field' with the timestamp of the expired 'start event'" do
+          insist { @expired_events[0].get("elapsed_timestamp_start") } == @start_event_2.get(timestamp_field)
+          insist { @expired_events[1].get("elapsed_timestamp_start") } == @start_event_3.get(timestamp_field)
+        end
+
+        it "creates a new event containing a 'host field' for each expired 'start event'" do
+          insist { @expired_events[0].get("host") } == Socket.gethostname
+          insist { @expired_events[1].get("host") } == Socket.gethostname
+        end
       end
 
-      it "deletes the recorded 'start events' with 'age' greater, or equal to, the timeout" do
-        insist { @filter.start_events.key?("1") } == true
-        insist { @filter.start_events.key?("2") } == false
-        insist { @filter.start_events.key?("3") } == false
+      context "if 'timestamp_field' is not set" do
+        before(:each) do
+          setup(30)
+
+          @expired_events = @filter.flush()
+
+          insist { @filter.start_events.size } == 1
+          insist { @expired_events.size } == 2
+        end
+
+        context "modifies the 'end event' that" do
+          it_behaves_like "flush events", DEFAULT_TIMESTAMP_FIELD
+        end
       end
 
-      it "creates a new event with tag 'elapsed_expired_error' for each expired 'start event'" do
-        insist { @expired_events[0].get("tags").include?("elapsed_expired_error") } == true
-        insist { @expired_events[1].get("tags").include?("elapsed_expired_error") } == true
-      end
+      context "if 'timestamp_field' is set" do
+        before(:each) do
+          setup(30, true)
 
-      it "creates a new event with tag 'elapsed' for each expired 'start event'" do
-        insist { @expired_events[0].get("tags").include?("elapsed") } == true
-        insist { @expired_events[1].get("tags").include?("elapsed") } == true
-      end
+          @expired_events = @filter.flush()
 
-      it "creates a new event containing the 'id field' of the expired 'start event'" do
-        insist { @expired_events[0].get(ID_FIELD) } == "2"
-        insist { @expired_events[1].get(ID_FIELD) } == "3"
-      end
+          insist { @filter.start_events.size } == 1
+          insist { @expired_events.size } == 2
+        end
 
-      it "creates a new event containing an 'elapsed_time field' with the age of the expired 'start event'" do
-        insist { @expired_events[0].get("elapsed_time") } == 30
-        insist { @expired_events[1].get("elapsed_time") } == 31
-      end
-
-      it "creates a new event containing an 'elapsed_timestamp_start field' with the timestamp of the expired 'start event'" do
-        insist { @expired_events[0].get("elapsed_timestamp_start") } == @start_event_2.get("@timestamp")
-        insist { @expired_events[1].get("elapsed_timestamp_start") } == @start_event_3.get("@timestamp")
-      end
-
-      it "creates a new event containing a 'host field' for each expired 'start event'" do
-        insist { @expired_events[0].get("host") } == Socket.gethostname
-        insist { @expired_events[1].get("host") } == Socket.gethostname
+        context "modifies the 'end event' that" do
+          it_behaves_like "flush events", CUSTOM_TIMESTAMP_FIELD
+        end
       end
     end
   end
