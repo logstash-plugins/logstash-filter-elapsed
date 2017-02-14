@@ -1,13 +1,7 @@
-# elapsed filter
-#
-# This filter tracks a pair of start/end events and calculates the elapsed
-# time between them.
-
 require "logstash/filters/base"
 require "logstash/namespace"
 require 'thread'
 require 'socket'
-
 
 # The elapsed filter tracks a pair of start/end events and uses their
 # timestamps to calculate the elapsed time between them.
