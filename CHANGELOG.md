@@ -1,3 +1,6 @@
+# 4.0.1
+  - Docs: Fix docgen issues by removing extraneous comments
+
 # 4.0.0
   - Use the new Event Api used in v5.0.0+
 
