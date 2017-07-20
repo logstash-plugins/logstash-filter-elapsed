@@ -130,17 +130,9 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
     unique_id = event.get(@unique_id_field)
     return if unique_id.nil?
 
-    if(start_event?(event))
-      filter_matched(event)
-      @logger.info("Elapsed, 'start event' received", start_tag: @start_tag, unique_id_field: @unique_id_field)
+    new_event = nil
 
-      @mutex.synchronize do
-        unless(@start_events.has_key?(unique_id))
-          @start_events[unique_id] = LogStash::Filters::Elapsed::Element.new(event)
-        end
-      end
-
-    elsif(end_event?(event))
+    if(end_event?(event))
       filter_matched(event)
       @logger.info("Elapsed, 'end event' received", end_tag: @end_tag, unique_id_field: @unique_id_field)
 
@@ -152,14 +144,33 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
         if(@new_event_on_match)
           elapsed_event = new_elapsed_event(elapsed, unique_id, start_event.get("@timestamp"))
           filter_matched(elapsed_event)
-          yield elapsed_event if block_given?
+          new_event = elapsed_event
         else
-          return add_elapsed_info(event, elapsed, unique_id, start_event.get("@timestamp"))
+          new_event = add_elapsed_info(event, elapsed, unique_id, start_event.get("@timestamp"))
         end
       else
         @mutex.unlock
         # The "start event" did not arrive.
         event.tag(END_WITHOUT_START_TAG)
+      end
+    end
+
+    if(start_event?(event))
+      filter_matched(event)
+      @logger.info("Elapsed, 'start event' received", start_tag: @start_tag, unique_id_field: @unique_id_field)
+
+      @mutex.synchronize do
+        unless(@start_events.has_key?(unique_id))
+          @start_events[unique_id] = LogStash::Filters::Elapsed::Element.new(event)
+        end
+      end
+    end
+
+    if (!new_event.nil?)
+      if(@new_event_on_match)
+        yield new_event if block_given?
+      else
+        return new_event
       end
     end
   end # def filter
