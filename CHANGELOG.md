@@ -1,3 +1,6 @@
+## 4.0.3
+  - Fix some documentation issues
+
 # 4.0.1
   - Docs: Fix docgen issues by removing extraneous comments
 
