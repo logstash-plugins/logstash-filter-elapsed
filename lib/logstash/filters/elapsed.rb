@@ -132,7 +132,7 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
 
     if(start_event?(event))
       filter_matched(event)
-      @logger.info("Elapsed, 'start event' received", start_tag: @start_tag, unique_id_field: @unique_id_field)
+      @logger.debug("Elapsed, 'start event' received", start_tag: @start_tag, unique_id_field: @unique_id_field)
 
       @mutex.synchronize do
         unless(@start_events.has_key?(unique_id))
@@ -142,7 +142,7 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
 
     elsif(end_event?(event))
       filter_matched(event)
-      @logger.info("Elapsed, 'end event' received", end_tag: @end_tag, unique_id_field: @unique_id_field)
+      @logger.debug("Elapsed, 'end event' received", end_tag: @end_tag, unique_id_field: @unique_id_field)
 
       @mutex.lock
       if(@start_events.has_key?(unique_id))
