@@ -164,6 +164,11 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
     end
   end # def filter
 
+  # Necessary to indicate logstash to periodically call 'flush' method
+  def periodic_flush
+    true
+  end
+
   # The method is invoked by LogStash every 5 seconds.
   def flush(options = {})
     expired_elements = []
