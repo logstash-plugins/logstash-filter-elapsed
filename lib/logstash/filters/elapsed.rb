@@ -109,6 +109,10 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
   # to the "end event"; if it's set to `true` a new "match event" is created.
   config :new_event_on_match, :validate => :boolean, :required => false, :default => false
 
+  # This filter must have its flush function called periodically to be able to purge
+  # expired stored start events.
+  config :periodic_flush, :validate => :boolean, :default => true
+
   public
   def register
     @mutex = Mutex.new
