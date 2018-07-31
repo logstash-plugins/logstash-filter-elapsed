@@ -1,3 +1,8 @@
+## 4.1.0
+  - Added option `keep_start_event` to manage what to do when several messages matched
+  as a start event were received before the end event for the specified ID.
+  [#35](https://github.com/logstash-plugins/logstash-filter-elapsed/pull/35)
+
 ## 4.0.5
   - Fixed default to true for the periodic_flush option in order for the caching expiration to work [#36](https://github.com/logstash-plugins/logstash-filter-elapsed/pull/36) 
 

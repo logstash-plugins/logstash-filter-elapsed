@@ -74,16 +74,36 @@ describe LogStash::Filters::Elapsed do
     end
 
     describe "receiving two 'start events' for the same id field" do
-      it "keeps the first one and does not save the second one" do
-          args = {"tags" => [START_TAG], ID_FIELD => "id123"}
-          first_event = event(args)
-          second_event = event(args)
+      context "if 'keep_start_event' is set to 'last'" do
+        before(:each) do
+          setup_filter("keep_start_event" => 'last')
+        end
 
-          @filter.filter(first_event)
-          @filter.filter(second_event)
+        it "keeps the second one and does not save the first one" do
+            args = {"tags" => [START_TAG], ID_FIELD => "id123"}
+            first_event = event(args)
+            second_event = event(args)
 
-          insist { @filter.start_events.size } == 1
-          insist { @filter.start_events["id123"].event } == first_event
+            @filter.filter(first_event)
+            @filter.filter(second_event)
+
+            insist { @filter.start_events.size } == 1
+            insist { @filter.start_events["id123"].event } == second_event
+        end
+      end
+
+      context "if 'keep_start_event' is set to 'first'" do
+        it "keeps the first one and does not save the second one" do
+            args = {"tags" => [START_TAG], ID_FIELD => "id123"}
+            first_event = event(args)
+            second_event = event(args)
+
+            @filter.filter(first_event)
+            @filter.filter(second_event)
+
+            insist { @filter.start_events.size } == 1
+            insist { @filter.start_events["id123"].event } == first_event
+        end
       end
     end
   end
