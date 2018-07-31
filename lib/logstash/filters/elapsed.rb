@@ -109,6 +109,12 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
   # to the "end event"; if it's set to `true` a new "match event" is created.
   config :new_event_on_match, :validate => :boolean, :required => false, :default => false
 
+  # This property manage what to do when several "start events" were received
+  # before an "end event" for a concrete ID. If it's set to `first` (default
+  # value), the first "start event" will be used; if it's set to `last`,
+  # the last "start event" will be used.
+  config :keep_start_event, :validate => ['first', 'last'], :required => false, :default => 'first'
+
   # This filter must have its flush function called periodically to be able to purge
   # expired stored start events.
   config :periodic_flush, :validate => :boolean, :default => true
@@ -139,7 +145,7 @@ class LogStash::Filters::Elapsed < LogStash::Filters::Base
       @logger.debug("Elapsed, 'start event' received", start_tag: @start_tag, unique_id_field: @unique_id_field)
 
       @mutex.synchronize do
-        unless(@start_events.has_key?(unique_id))
+        unless(@keep_start_event == 'first' && @start_events.has_key?(unique_id))
           @start_events[unique_id] = LogStash::Filters::Elapsed::Element.new(event)
         end
       end
